@@ -3,7 +3,7 @@ use crate::{AppError, AppResult, Profile, ProfileStatus};
 use tauri::{
     menu::{Menu, MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter,
+    AppHandle, Emitter, Manager,
 };
 
 pub struct TrayService {
@@ -52,21 +52,110 @@ impl TrayService {
     
     /// Create tray icon with safety checks
     fn create_tray_icon_safe(&self, menu: &Menu<tauri::Wry>) -> AppResult<()> {
-        // Get icon with fallback
-        let icon = match self.app_handle.default_window_icon() {
-            Some(icon) => icon.clone(),
-            None => {
-                log::warn!("No default window icon found, creating tray without icon");
-                return self.create_tray_without_icon(menu);
+        // Try to load tray-specific icon first, fallback to app icon
+        let icon_result = self.load_tray_icon();
+        
+        match icon_result {
+            Ok(icon) => {
+                log::info!("Using custom tray icon");
+                self.create_tray_with_icon(menu, icon)
             }
+            Err(_) => {
+                // Fallback to default window icon
+                let icon = match self.app_handle.default_window_icon() {
+                    Some(icon) => {
+                        log::info!("Using default window icon for tray");
+                        icon.clone()
+                    }
+                    None => {
+                        log::warn!("No default window icon found, creating tray without icon");
+                        return self.create_tray_without_icon(menu);
+                    }
+                };
+                self.create_tray_with_icon(menu, icon)
+            }
+        }
+    }
+    
+    /// Load tray-specific icon
+    fn load_tray_icon(&self) -> AppResult<tauri::image::Image<'_>> {
+        use std::fs;
+        use std::env;
+        
+        // Get the base path - different in dev vs production
+        let base_path = if cfg!(debug_assertions) {
+            // Development mode - use project root but avoid double src-tauri
+            let current = env::current_dir().unwrap_or_default();
+            // If we're already in src-tauri, go up one level
+            if current.file_name().and_then(|n| n.to_str()) == Some("src-tauri") {
+                current.parent().unwrap_or(&current).to_path_buf()
+            } else {
+                current
+            }
+        } else {
+            // Production mode - use app resources
+            self.app_handle.path().resource_dir().unwrap_or_default()
         };
         
-        // Try to create tray icon with specific ID
+        // Try to load custom tray icon first (16x16 for better quality on retina displays)
+        let tray_icon_relative_paths = [
+            "src-tauri/icons/tray/tray-icon-large.png",       // Large icon with small padding (current choice)
+            "src-tauri/icons/tray/tray-icon-xl.png",          // Extra large icon (minimal padding)
+            "src-tauri/icons/tray/tray-icon-large-32.png",    // 32x32 large version
+            "src-tauri/icons/tray/tray-icon-clean-16.png",    // Original clean version
+            "src-tauri/icons/tray/tray-icon-hq-16.png",       // High-quality black version
+            "src-tauri/icons/32x32.png" // fallback to original icon
+        ];
+        
+        for relative_path in &tray_icon_relative_paths {
+            let icon_path = base_path.join(relative_path);
+            log::debug!("Trying to load tray icon from: {:?}", icon_path);
+            
+            // Try to load the icon data from file
+            match fs::read(&icon_path) {
+                Ok(icon_data) => {
+                    // Try to create image from raw data
+                    match image::load_from_memory(&icon_data) {
+                        Ok(img) => {
+                            let rgba_img = img.to_rgba8();
+                            let (width, height) = rgba_img.dimensions();
+                            let rgba_data = rgba_img.into_raw();
+                            
+                            let tauri_image = tauri::image::Image::new_owned(rgba_data, width, height);
+                            log::info!("Successfully loaded custom tray icon from: {:?}", icon_path);
+                            return Ok(tauri_image);
+                        }
+                        Err(e) => {
+                            log::debug!("Failed to decode image from {:?}: {}", icon_path, e);
+                            continue;
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::debug!("Failed to read file {:?}: {}", icon_path, e);
+                    continue;
+                }
+            }
+        }
+        
+        Err(AppError::TrayError("Could not load any tray icon".to_string()))
+    }
+    
+    /// Create tray with provided icon
+    fn create_tray_with_icon(&self, menu: &Menu<tauri::Wry>, icon: tauri::image::Image<'_>) -> AppResult<()> {
         let app_handle_clone = self.app_handle.clone();
+        
+        // 检测图标类型来决定是否使用模板模式
+        // 如果是彩色图标（如clean版本），使用普通模式保持色彩
+        // 如果是黑白图标（如hq版本），使用模板模式适应主题
+        let use_template_mode = self.should_use_template_mode();
+        
+        log::info!("Creating tray icon with template mode: {}", use_template_mode);
+        
         let _tray = TrayIconBuilder::with_id(&self.tray_id)
             .icon(icon)
             .menu(menu)
-            .icon_as_template(true) // macOS: use template icon for dark/light mode
+            .icon_as_template(use_template_mode)
             .show_menu_on_left_click(false) // Only show menu on right-click
             .on_menu_event(move |app, event| {
                 if let Err(e) = Self::handle_menu_event_safe(app, event) {
@@ -85,12 +174,33 @@ impl TrayService {
         Ok(())
     }
     
+    /// 智能决定是否使用模板模式
+    fn should_use_template_mode(&self) -> bool {
+        // 在这里您可以自由调整策略：
+        // - true: 使用模板模式（适应系统主题，图标会变黑白）
+        // - false: 使用普通模式（保持原始颜色）
+        
+        // 方案1：始终使用彩色模式
+        false
+        
+        // 方案2：根据系统主题智能选择（如果您想要这个，可以取消注释）
+        // self.detect_system_theme_preference()
+    }
+    
+    /// 检测系统主题偏好（未来扩展用）
+    #[allow(dead_code)]
+    fn detect_system_theme_preference(&self) -> bool {
+        // 这里可以检测系统主题或用户设置
+        // 暂时返回false（使用彩色模式）
+        false
+    }
+    
     /// Create tray without icon as fallback
     fn create_tray_without_icon(&self, menu: &Menu<tauri::Wry>) -> AppResult<()> {
         let app_handle_clone = self.app_handle.clone();
         let _tray = TrayIconBuilder::with_id(&self.tray_id)
             .menu(menu)
-            .icon_as_template(true) // macOS: use template icon for dark/light mode
+            .icon_as_template(true) // Try template mode for better macOS integration
             .show_menu_on_left_click(false) // Only show menu on right-click
             .on_menu_event(move |app, event| {
                 if let Err(e) = Self::handle_menu_event_safe(app, event) {

@@ -147,7 +147,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Roadmap
 
 - [ ] Profile Configuration Editor
-- [ ] Custom Icon Support
+- [x] Custom Icon Support
 
 ## Support
 
