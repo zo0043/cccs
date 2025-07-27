@@ -222,9 +222,9 @@ impl I18nService {
     /// Get localized profile menu text
     pub fn get_profile_menu_text(&self, profile_name: &str, is_active: bool) -> String {
         if is_active {
-            format!("{} ✅", profile_name)
+            format!("✅ {}", profile_name)
         } else {
-            profile_name.to_string()
+            format!("　  {}", profile_name)  // 全角空格 + 两个普通空格
         }
     }
     
@@ -361,10 +361,10 @@ mod tests {
         let service = I18nService::new();
         
         let active_text = service.get_profile_menu_text("test", true);
-        assert_eq!(active_text, "test ✅");
+        assert_eq!(active_text, "✅ test");
         
         let inactive_text = service.get_profile_menu_text("test", false);
-        assert_eq!(inactive_text, "test");
+        assert_eq!(inactive_text, "　  test");
     }
     
     #[test]

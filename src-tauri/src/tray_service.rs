@@ -251,9 +251,9 @@ impl TrayService {
         // Add profile menu items
         for profile in profiles {
             let menu_text = if profile.is_active {
-                format!("{} ✅", profile.name)
+                format!("✅ {}", profile.name)
             } else {
-                profile.name.clone()
+                format!("　  {}", profile.name)  // 全角空格 + 两个普通空格
             };
             
             let menu_item = MenuItemBuilder::with_id(
@@ -291,10 +291,10 @@ impl TrayService {
         // Add profile menu items with detailed status
         for (profile, status) in profiles.iter().zip(statuses.iter()) {
             let menu_text = match status {
-                ProfileStatus::FullMatch => format!("{} ✅", profile.name),      // 完全匹配
-                ProfileStatus::PartialMatch => format!("{} 🔄", profile.name),  // 仅model字段不同
-                ProfileStatus::NoMatch => profile.name.clone(),                  // 配置不同，不显示图标
-                ProfileStatus::Error(_) => format!("{} ❌", profile.name),       // 错误状态
+                ProfileStatus::FullMatch => format!("✅ {}", profile.name),      // 完全匹配 - 图标前置
+                ProfileStatus::PartialMatch => format!("🔄 {}", profile.name),  // 仅model字段不同 - 图标前置
+                ProfileStatus::NoMatch => format!("　  {}", profile.name),       // 配置不同，全角空格 + 两个普通空格
+                ProfileStatus::Error(_) => format!("❌ {}", profile.name),       // 错误状态 - 图标前置
             };
             
             let menu_item = MenuItemBuilder::with_id(
@@ -449,14 +449,14 @@ impl TrayService {
         // Add profile menu items with status
         for profile in profiles {
             let menu_text = if let Some(temp_status) = status_updates.get(&profile.name) {
-                // Show temporary status (e.g., "Profile ❕")
-                format!("{} {}", profile.name, temp_status)
+                // Show temporary status (e.g., "❕ Profile")
+                format!("{} {}", temp_status, profile.name)
             } else if profile.is_active {
                 // Show active status
-                format!("{} ✅", profile.name)
+                format!("✅ {}", profile.name)
             } else {
-                // No status
-                profile.name.clone()
+                // No status - use full-width space + two normal spaces
+                format!("　  {}", profile.name)
             };
             
             let menu_item = MenuItemBuilder::with_id(
@@ -537,18 +537,18 @@ mod tests {
         
         // Test that active profiles would have checkmark
         let active_text = if active_profile.is_active {
-            format!("{} ✅", active_profile.name)
+            format!("✅ {}", active_profile.name)
         } else {
-            active_profile.name.clone()
+            format!("　  {}", active_profile.name)
         };
         
         let inactive_text = if inactive_profile.is_active {
-            format!("{} ✅", inactive_profile.name)
+            format!("✅ {}", inactive_profile.name)
         } else {
-            inactive_profile.name.clone()
+            format!("　  {}", inactive_profile.name)
         };
         
-        assert_eq!(active_text, "active ✅");
-        assert_eq!(inactive_text, "inactive");
+        assert_eq!(active_text, "✅ active");
+        assert_eq!(inactive_text, "　  inactive");
     }
 }
