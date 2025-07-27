@@ -1,8 +1,8 @@
 [package]
 name = "cccs"
-version = "1.0.1"
+version = "1.0.2"
 description = "Claude Code Configuration Switcher"
-authors = ["KZAI Lab"]
+authors = ["KZAILab"]
 license = "MIT"
 repository = "https://github.com/breakstring/cccs"
 edition = "2021"

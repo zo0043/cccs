@@ -105,6 +105,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         log::info!("CCCS application starting in development mode");
     }
 
+    // Hide dock icon on macOS to make this a pure tray application
+    #[cfg(target_os = "macos")]
+    app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
     let app_handle = app.handle().clone();
 
     // Initialize basic services with error handling
