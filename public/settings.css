@@ -45,20 +45,22 @@ header h1 {
 /* Main content */
 main {
     flex: 1;
-    padding: 20px;
+    padding: 16px 20px;
     overflow-y: auto;
 }
 
 /* Sections */
 .info-section,
 .settings-section,
-.status-section {
-    margin-bottom: 24px;
+.status-section,
+.status-icons-section {
+    margin-bottom: 20px;
 }
 
 .info-section:last-child,
 .settings-section:last-child,
-.status-section:last-child {
+.status-section:last-child,
+.status-icons-section:last-child {
     margin-bottom: 0;
 }
 
@@ -66,13 +68,13 @@ section h2 {
     font-size: 16px;
     font-weight: 600;
     color: #333;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .separator {
     height: 1px;
     background: #e1e5e9;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .info-section p {
@@ -82,7 +84,7 @@ section h2 {
 
 /* Setting items */
 .setting-item {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .setting-item:last-child {
@@ -170,30 +172,34 @@ section h2 {
     align-items: center;
     cursor: pointer;
     padding: 4px 0;
+    position: relative;
 }
 
 .checkbox-container input[type="checkbox"] {
-    position: absolute;
-    opacity: 0;
+    margin: 0;
     cursor: pointer;
+    z-index: 2;
+    width: 18px;
+    height: 18px;
 }
 
 .checkmark {
+    position: absolute;
     height: 18px;
     width: 18px;
     background-color: #f9fafb;
     border: 1px solid #d1d5db;
     border-radius: 3px;
-    margin-right: 10px;
-    position: relative;
+    pointer-events: none;
     transition: all 0.2s;
+    z-index: 1;
 }
 
 .checkbox-container:hover .checkmark {
     border-color: #667eea;
 }
 
-.checkbox-container input[type="checkbox"]:checked ~ .checkmark {
+.checkbox-container input[type="checkbox"]:checked + .checkmark {
     background-color: #667eea;
     border-color: #667eea;
 }
@@ -211,8 +217,44 @@ section h2 {
     transform: rotate(45deg);
 }
 
-.checkbox-container input[type="checkbox"]:checked ~ .checkmark:after {
+.checkbox-container input[type="checkbox"]:checked + .checkmark:after {
     display: block;
+}
+
+/* Setting description */
+.setting-description {
+    margin-top: 12px;
+    padding: 12px;
+    background: #f8fafc;
+    border-radius: 6px;
+    border-left: 3px solid #667eea;
+}
+
+.setting-description p {
+    color: #666;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 12px;
+}
+
+.status-indicators {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #555;
+}
+
+.status-indicator .icon {
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
 }
 
 /* Select dropdown */
@@ -232,12 +274,73 @@ select:focus {
     box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
 }
 
-/* Status section */
+/* Status icons section */
+.status-icon-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.status-icon-item:last-child {
+    border-bottom: none;
+}
+
+.status-icon {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.status-icon:empty {
+    /* Style for empty status icon (no match case) */
+    background: #e5e7eb;
+    border-radius: 3px;
+    height: 18px;
+    position: relative;
+}
+
+.status-icon:empty::before {
+    content: "—";
+    color: #9ca3af;
+    font-size: 14px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.status-description {
+    color: #666;
+    font-size: 13px;
+    line-height: 1.3;
+    flex: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+    .status-icon-item {
+        border-bottom-color: #4b5563;
+    }
+    
+    .status-description {
+        color: #d1d5db;
+    }
+    
+    .status-icon:empty {
+        background: #4b5563;
+    }
+    
+    .status-icon:empty::before {
+        color: #9ca3af;
+    }
+}
 .status-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
+    padding: 6px 0;
     border-bottom: 1px solid #f1f3f4;
 }
 
@@ -267,7 +370,7 @@ select:focus {
 
 /* Footer */
 footer {
-    padding: 16px 20px;
+    padding: 12px 20px;
     border-top: 1px solid #e1e5e9;
     background: #f9fafb;
     text-align: center;
@@ -306,11 +409,12 @@ footer {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 9999;
+    transition: opacity 0.3s ease;
 }
 
 .loading-overlay.hidden {
-    display: none;
+    display: none !important;
 }
 
 .loading-spinner {
@@ -409,6 +513,19 @@ footer {
     .checkmark {
         background-color: #4b5563;
         border-color: #6b7280;
+    }
+    
+    .setting-description {
+        background: #374151;
+        border-left-color: #667eea;
+    }
+    
+    .setting-description p {
+        color: #d1d5db;
+    }
+    
+    .status-indicator {
+        color: #e5e7eb;
     }
     
     .status-label {

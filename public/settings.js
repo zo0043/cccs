@@ -13,7 +13,6 @@ const elements = {
     languageSelect: null,
     claudeDirectory: null,
     profilesCount: null,
-    monitorStatus: null,
     closeButton: null,
     loadingOverlay: null,
     toastContainer: null,
@@ -25,6 +24,11 @@ const translations = {
         settings_title: 'CCCS - Settings',
         app_info_title: 'Application Information',
         app_description: 'CCCS (Claude Code Configuration Switcher) is a tool for quickly switching Claude Code configuration files.',
+        status_icons_title: 'Profile Status Icons',
+        full_match_description: 'Complete match - configuration fully matches current settings',
+        partial_match_description: 'Partial match - identical except model field (auto-updated by Claude Code)',
+        error_status_description: 'Error - failed to read or parse configuration file',
+        no_match_description: 'No icon - configuration differs from current settings',
         language_settings_title: 'Language Settings',
         interface_language_label: 'Interface language:',
         follow_system: 'Follow system',
@@ -33,7 +37,6 @@ const translations = {
         current_status_title: 'Current Status',
         claude_directory_label: 'Claude Code directory:',
         profiles_found_label: 'Configuration files found:',
-        monitor_status_label: 'Profile status:',
         close_button: 'Close',
         saving_settings: 'Saving settings...',
         active: 'Active',
@@ -45,6 +48,11 @@ const translations = {
         settings_title: 'CCCS - 设置',
         app_info_title: '应用程序信息',
         app_description: 'CCCS (Claude Code Configuration Switcher) 是一个用于快速切换 Claude Code 配置文件的工具。',
+        status_icons_title: '配置状态图标',
+        full_match_description: '完全匹配 - 配置与当前设置完全一致',
+        partial_match_description: '部分匹配 - 除model字段外完全一致（Claude Code自动更新）',
+        error_status_description: '错误 - 读取或解析配置文件失败',
+        no_match_description: '无图标 - 配置与当前设置不同',
         language_settings_title: '语言设置',
         interface_language_label: '界面语言:',
         follow_system: '跟随系统',
@@ -53,7 +61,6 @@ const translations = {
         current_status_title: '当前状态',
         claude_directory_label: 'Claude Code 目录:',
         profiles_found_label: '发现的配置文件:',
-        monitor_status_label: '配置状态:',
         close_button: '关闭',
         saving_settings: '正在保存设置...',
         active: '激活',
@@ -89,8 +96,14 @@ function updateTexts() {
 }
 
 function showLoading(show) {
+    console.log('showLoading called with:', show);
     isLoading = show;
-    elements.loadingOverlay.classList.toggle('hidden', !show);
+    if (elements.loadingOverlay) {
+        elements.loadingOverlay.style.display = show ? 'flex' : 'none';
+        console.log('Loading overlay display:', elements.loadingOverlay.style.display);
+    } else {
+        console.error('Loading overlay element not found!');
+    }
 }
 
 function showToast(message, type = 'success') {
@@ -134,19 +147,14 @@ async function loadAppStatus() {
         
         elements.claudeDirectory.textContent = profilesData.claude_directory || '~/.claude';
         elements.profilesCount.textContent = profilesData.profiles_count.toString();
-        
-        // Show profile status
-        elements.monitorStatus.textContent = translations[currentLanguage].inactive;
-        elements.monitorStatus.className = 'status-value inactive';
     } catch (error) {
         console.error('Failed to load app status:', error);
         // Use fallback values
         elements.claudeDirectory.textContent = '~/.claude';
         elements.profilesCount.textContent = '0';
-        elements.monitorStatus.textContent = translations[currentLanguage].inactive;
-        elements.monitorStatus.className = 'status-value inactive';
     }
 }
+
 
 async function updateLanguage(language) {
     try {
@@ -223,7 +231,6 @@ function initElements() {
     elements.languageSelect = document.getElementById('language-select');
     elements.claudeDirectory = document.getElementById('claude-directory');
     elements.profilesCount = document.getElementById('profiles-count');
-    elements.monitorStatus = document.getElementById('monitor-status');
     elements.closeButton = document.getElementById('close-button');
     elements.loadingOverlay = document.getElementById('loading-overlay');
     elements.toastContainer = document.getElementById('toast-container');

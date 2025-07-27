@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "CCCS",
-  "version": "0.1.0",
-  "identifier": "com.cccs.cccs",
+  "version": "1.0.0",
+  "identifier": "com.kzailab.cccs",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",

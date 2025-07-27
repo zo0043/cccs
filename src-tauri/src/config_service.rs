@@ -36,6 +36,7 @@ impl ConfigService {
         }
     }
     
+    
     /// Clear all caches when needed
     pub fn clear_cache(&mut self) {
         self.profile_cache.clear();
@@ -282,6 +283,64 @@ impl ConfigService {
         }
     }
     
+    /// Get detailed profile status with smart comparison
+    pub fn get_detailed_profile_status(&self, profile_content: &str) -> ProfileStatus {
+        let default_content = match fs::read_to_string(&self.default_settings_path) {
+            Ok(content) => content,
+            Err(e) => {
+                return ProfileStatus::Error(format!("Failed to read default settings: {}", e));
+            }
+        };
+        
+        let (default_json, profile_json) = match (
+            serde_json::from_str::<serde_json::Value>(&default_content),
+            serde_json::from_str::<serde_json::Value>(profile_content),
+        ) {
+            (Ok(default), Ok(profile)) => (default, profile),
+            (Err(e), _) => {
+                return ProfileStatus::Error(format!("Invalid default settings JSON: {}", e));
+            }
+            (_, Err(e)) => {
+                return ProfileStatus::Error(format!("Invalid profile JSON: {}", e));
+            }
+        };
+        
+        // Check for full match first
+        if profile_json == default_json {
+            return ProfileStatus::FullMatch;
+        }
+        
+        // Always check if only model field is different
+        let matches_ignoring_model = self.compare_json_ignoring_field(&profile_json, &default_json, "model");
+        if matches_ignoring_model {
+            return ProfileStatus::PartialMatch;
+        }
+        
+        ProfileStatus::NoMatch
+    }
+    
+    /// Compare two JSON values while ignoring a specific field
+    fn compare_json_ignoring_field(
+        &self,
+        json1: &serde_json::Value,
+        json2: &serde_json::Value,
+        ignore_field: &str,
+    ) -> bool {
+        match (json1, json2) {
+            (serde_json::Value::Object(obj1), serde_json::Value::Object(obj2)) => {
+                // Create modified copies without the ignored field
+                let mut filtered_obj1 = obj1.clone();
+                let mut filtered_obj2 = obj2.clone();
+                
+                filtered_obj1.remove(ignore_field);
+                filtered_obj2.remove(ignore_field);
+                
+                filtered_obj1 == filtered_obj2
+            }
+            _ => json1 == json2,
+        }
+    }
+    
     /// Read the default settings.json content
     fn read_default_settings(&self) -> AppResult<String> {
         fs::read_to_string(&self.default_settings_path)
@@ -300,29 +359,22 @@ impl ConfigService {
         }
     }
     
-    /// Get the status of all profiles
+    /// Get the status of all profiles with detailed comparison
     pub fn compare_profiles(&self) -> Vec<ProfileStatus> {
         let mut statuses = Vec::new();
         
         for profile in &self.profiles {
-            if profile.is_active {
-                statuses.push(ProfileStatus::Active);
-            } else {
-                statuses.push(ProfileStatus::Inactive);
-            }
+            let status = self.get_detailed_profile_status(&profile.content);
+            statuses.push(status);
         }
         
         statuses
     }
     
-    /// Get the status of a specific profile
+    /// Get the status of a specific profile with detailed comparison
     pub fn get_profile_status(&self, profile_name: &str) -> ProfileStatus {
         if let Some(profile) = self.profiles.iter().find(|p| p.name == profile_name) {
-            if profile.is_active {
-                ProfileStatus::Active
-            } else {
-                ProfileStatus::Inactive
-            }
+            self.get_detailed_profile_status(&profile.content)
         } else {
             ProfileStatus::Error(format!("Profile '{}' not found", profile_name))
         }

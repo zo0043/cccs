@@ -22,6 +22,32 @@
                 </p>
             </section>
             
+            <!-- Profile Status Icons -->
+            <section class="status-icons-section">
+                <h2 data-i18n="status_icons_title">Profile Status Icons</h2>
+                <div class="separator"></div>
+                
+                <div class="status-icon-item">
+                    <span class="status-icon">✅</span>
+                    <span class="status-description" data-i18n="full_match_description">Complete match - configuration fully matches current settings</span>
+                </div>
+                
+                <div class="status-icon-item">
+                    <span class="status-icon">🔄</span>
+                    <span class="status-description" data-i18n="partial_match_description">Partial match - identical except model field (auto-updated by Claude Code)</span>
+                </div>
+                
+                <div class="status-icon-item">
+                    <span class="status-icon">❌</span>
+                    <span class="status-description" data-i18n="error_status_description">Error - failed to read or parse configuration file</span>
+                </div>
+                
+                <div class="status-icon-item">
+                    <span class="status-icon"></span>
+                    <span class="status-description" data-i18n="no_match_description">No icon - configuration differs from current settings</span>
+                </div>
+            </section>
+            
             <!-- Language Settings -->
             <section class="settings-section">
                 <h2 data-i18n="language_settings_title">Language Settings</h2>
@@ -51,11 +77,6 @@
                     <span class="status-label" data-i18n="profiles_found_label">Configuration files found:</span>
                     <span class="status-value" id="profiles-count">0</span>
                 </div>
-                
-                <div class="status-item">
-                    <span class="status-label" data-i18n="monitor_status_label">Profile status:</span>
-                    <span class="status-value" id="monitor-status" data-i18n="inactive">Inactive</span>
-                </div>
             </section>
         </main>
         
@@ -65,7 +86,7 @@
     </div>
     
     <!-- Loading overlay -->
-    <div id="loading-overlay" class="loading-overlay hidden">
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
         <div class="loading-spinner"></div>
         <div class="loading-text" data-i18n="saving_settings">Saving settings...</div>
     </div>

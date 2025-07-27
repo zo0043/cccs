@@ -17,8 +17,6 @@ pub mod performance_tests;
 // Re-exports for public API
 pub use error::AppError;
 pub use types::*;
-use config_service::ConfigService;
-use claude_detector::ClaudeDetector;
 
 pub type AppResult<T> = Result<T, AppError>;
 

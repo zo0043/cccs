@@ -1,5 +1,5 @@
 // System tray service for CCCS
-use crate::{AppError, AppResult, Profile};
+use crate::{AppError, AppResult, Profile, ProfileStatus};
 use tauri::{
     menu::{Menu, MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -168,6 +168,47 @@ impl TrayService {
         
         self.current_menu = Some(menu);
         log::info!("Tray menu updated successfully");
+        
+        Ok(())
+    }
+    
+    /// Update menu with detailed profile status indicators
+    pub fn update_menu_with_detailed_status(&mut self, profiles: &[Profile], statuses: &[ProfileStatus]) -> AppResult<()> {
+        log::info!("Updating tray menu with {} profiles and detailed status", profiles.len());
+        
+        let mut menu_builder = MenuBuilder::new(&self.app_handle);
+        
+        // Add profile menu items with detailed status
+        for (profile, status) in profiles.iter().zip(statuses.iter()) {
+            let menu_text = match status {
+                ProfileStatus::FullMatch => format!("{} ✅", profile.name),      // 完全匹配
+                ProfileStatus::PartialMatch => format!("{} 🔄", profile.name),  // 仅model字段不同
+                ProfileStatus::NoMatch => profile.name.clone(),                  // 配置不同，不显示图标
+                ProfileStatus::Error(_) => format!("{} ❌", profile.name),       // 错误状态
+            };
+            
+            let menu_item = MenuItemBuilder::with_id(
+                format!("profile_{}", profile.name),
+                menu_text
+            ).build(&self.app_handle)?;
+            
+            menu_builder = menu_builder.item(&menu_item);
+        }
+        
+        // Add separator and system menu items
+        let menu = menu_builder
+            .separator()
+            .item(&MenuItemBuilder::with_id("settings", "Settings").build(&self.app_handle)?)
+            .item(&MenuItemBuilder::with_id("exit", "Exit").build(&self.app_handle)?)
+            .build()?;
+        
+        // Update the tray menu - get tray by ID
+        if let Some(tray) = self.app_handle.tray_by_id(&self.tray_id) {
+            tray.set_menu(Some(menu.clone()))?;
+        }
+        
+        self.current_menu = Some(menu);
+        log::info!("Tray menu updated successfully with detailed status indicators");
         
         Ok(())
     }

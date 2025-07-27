@@ -37,11 +37,12 @@ impl Default for UserSettings {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ProfileStatus {
-    Active,
-    Inactive,
-    Error(String),
+    FullMatch,      // 完全匹配 ✅
+    PartialMatch,   // 部分匹配（忽略model字段后匹配）🔄
+    NoMatch,        // 不匹配 ❌
+    Error(String),  // 错误状态
 }
 
 #[derive(Debug)]
