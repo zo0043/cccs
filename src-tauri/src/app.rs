@@ -9,6 +9,7 @@ use crate::{
     i18n_service::I18nService,
 };
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Listener, Manager};
 
 pub struct App {
@@ -35,8 +36,11 @@ impl App {
             settings.get_current_settings().monitor_interval_minutes
         };
         
-        // These will be initialized later during the initialization process
-        let config_service = Arc::new(Mutex::new(ConfigService::new("/tmp".into()))); // Placeholder
+        // Detect Claude directory immediately during construction
+        let claude_dir = Self::detect_claude_directory_with_fallback(&app_handle)?;
+        
+        // Initialize services with proper configuration
+        let config_service = Arc::new(Mutex::new(ConfigService::new(claude_dir)));
         let tray_service = Arc::new(Mutex::new(TrayService::new(app_handle.clone())));
         let monitor_service = Arc::new(Mutex::new(MonitorService::new(monitor_interval)));
         
@@ -51,6 +55,57 @@ impl App {
         })
     }
     
+    /// Detect Claude directory with fallback strategies
+    fn detect_claude_directory_with_fallback(_app_handle: &AppHandle) -> AppResult<PathBuf> {
+        // Try automatic detection first
+        match ClaudeDetector::detect_claude_installation() {
+            Ok(dir) => {
+                log::info!("Claude directory detected automatically: {:?}", dir);
+                ClaudeDetector::validate_default_config(&dir)?;
+                return Ok(dir);
+            }
+            Err(AppError::ClaudeNotFound) => {
+                log::warn!("Claude directory not found automatically");
+            }
+            Err(e) => return Err(e),
+        }
+        
+        // Try common fallback locations
+        let fallback_locations = vec![
+            dirs::home_dir().map(|d| d.join(".claude")),
+            dirs::config_dir().map(|d| d.join("claude")),
+            std::env::var("CLAUDE_CONFIG_DIR").ok().map(PathBuf::from),
+        ];
+        
+        for location in fallback_locations.into_iter().flatten() {
+            if location.exists() && ClaudeDetector::validate_default_config(&location).is_ok() {
+                log::info!("Found Claude directory at fallback location: {:?}", location);
+                return Ok(location);
+            }
+        }
+        
+        // Create a default directory as last resort
+        if let Some(home_dir) = dirs::home_dir() {
+            let claude_dir = home_dir.join(".claude");
+            log::warn!("Creating default Claude directory: {:?}", claude_dir);
+            std::fs::create_dir_all(&claude_dir)
+                .map_err(|e| AppError::FileSystemError(format!("Failed to create Claude directory: {}", e)))?;
+            
+            // Create a minimal settings.json
+            let settings_file = claude_dir.join("settings.json");
+            if !settings_file.exists() {
+                let default_settings = r#"{"model": "claude-sonnet-4"}"#;
+                std::fs::write(&settings_file, default_settings)
+                    .map_err(|e| AppError::FileSystemError(format!("Failed to create default settings: {}", e)))?;
+                log::info!("Created default settings.json");
+            }
+            
+            return Ok(claude_dir);
+        }
+        
+        Err(AppError::ClaudeNotFound)
+    }
+    
     /// Initialize the application
     pub async fn initialize(&mut self) -> AppResult<()> {
         log::info!("Initializing CCCS application");
@@ -60,47 +115,76 @@ impl App {
             return Ok(());
         }
         
-        // Step 1: Detect Claude Code installation
-        let claude_dir = match ClaudeDetector::detect_claude_installation() {
-            Ok(dir) => dir,
-            Err(AppError::ClaudeNotFound) => {
-                log::info!("Claude Code not found, showing directory picker");
-                
-                match ClaudeDetector::show_directory_picker(&self.app_handle).await? {
-                    Some(dir) => dir,
-                    None => {
-                        log::info!("User cancelled directory selection, exiting");
-                        self.app_handle.exit(0);
-                        return Ok(());
-                    }
-                }
-            }
-            Err(e) => return Err(e),
-        };
-        
-        // Step 2: Validate default configuration
-        ClaudeDetector::validate_default_config(&claude_dir)?;
-        
-        // Step 3: Initialize configuration service with real Claude directory
+        // Step 1: Scan for profiles immediately
         {
             let mut config_service = self.config_service.lock().unwrap();
-            *config_service = ConfigService::new(claude_dir.clone());
-            
-            // Scan for profiles
-            config_service.scan_profiles()?;
+            match config_service.scan_profiles() {
+                Ok(profiles) => {
+                    log::info!("Successfully scanned {} profiles", profiles.len());
+                }
+                Err(e) => {
+                    log::error!("Failed to scan profiles: {}", e);
+                    // Don't fail initialization, just log the error
+                }
+            }
         }
         
-        // Step 4: Setup file monitoring
+        // Step 2: Setup file monitoring
         self.setup_monitoring().await?;
         
-        // Step 5: Create system tray
+        // Step 3: Create system tray
         self.setup_tray().await?;
         
-        // Step 6: Setup event listeners
+        // Step 4: Setup event listeners
         self.setup_event_listeners().await?;
+        
+        // Step 5: Perform initial status update
+        self.refresh_all_status().await?;
         
         self.is_initialized = true;
         log::info!("CCCS application initialized successfully");
+        
+        Ok(())
+    }
+    
+    /// Refresh all profile status and update UI
+    async fn refresh_all_status(&self) -> AppResult<()> {
+        log::debug!("Refreshing all profile status");
+        
+        // First refresh the status
+        {
+            let mut config_service = self.config_service.lock().unwrap();
+            config_service.refresh_profile_status()?;
+        }
+        
+        // Then get the profiles and statuses
+        let profiles = {
+            let config_service = self.config_service.lock().unwrap();
+            config_service.get_profiles().to_vec()
+        };
+        
+        let statuses = {
+            let config_service = self.config_service.lock().unwrap();
+            config_service.compare_profiles()
+        };
+        
+        // Update tray with current status
+        if let Ok(mut tray_service) = self.tray_service.lock() {
+            match tray_service.update_menu_with_detailed_status(&profiles, &statuses) {
+                Ok(()) => log::debug!("Tray menu updated successfully"),
+                Err(e) => log::error!("Failed to update tray menu: {}", e),
+            }
+            
+            // Update tooltip
+            if let Ok(i18n_service) = self.i18n_service.lock() {
+                let active_profile = profiles.iter()
+                    .enumerate()
+                    .find(|(i, _)| matches!(statuses[*i], crate::ProfileStatus::FullMatch))
+                    .map(|(_, p)| p.name.as_str());
+                let tooltip = i18n_service.get_tray_tooltip(profiles.len(), active_profile);
+                let _ = tray_service.set_tooltip(&tooltip);
+            }
+        }
         
         Ok(())
     }

@@ -123,37 +123,26 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Initialize CCCS app and store it in Tauri state
-    // This needs to be done synchronously to ensure proper state management
     match initialize_cccs_app(app_handle.clone()) {
-        Ok(cccs_app) => {
+        Ok(mut cccs_app) => {
             log::info!("CCCS app created successfully");
-            // Store the app instance
-            app.manage(Arc::new(Mutex::new(cccs_app)));
             
-            // Defer actual initialization to avoid blocking startup
-            let app_handle_clone = app_handle.clone();
-            std::thread::spawn(move || {
-                // Add delay to ensure UI is ready
-                std::thread::sleep(std::time::Duration::from_millis(2000));
-                
-                log::info!("Starting delayed CCCS initialization");
-                
-                // Get the app instance and initialize it
-                if let Some(app_state) = app_handle_clone.try_state::<Arc<Mutex<App>>>() {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    rt.block_on(async {
-                        let mut app = app_state.lock().unwrap();
-                        match app.initialize().await {
-                            Ok(()) => {
-                                log::info!("CCCS application initialized successfully");
-                            }
-                            Err(e) => {
-                                log::error!("Failed to initialize CCCS app: {}", e);
-                            }
-                        }
-                    });
+            // Initialize immediately during setup
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                match cccs_app.initialize().await {
+                    Ok(()) => {
+                        log::info!("CCCS application initialized successfully");
+                    }
+                    Err(e) => {
+                        log::error!("Failed to initialize CCCS app: {}", e);
+                        // Continue with partially initialized app
+                    }
                 }
             });
+            
+            // Store the initialized app instance
+            app.manage(Arc::new(Mutex::new(cccs_app)));
         }
         Err(e) => {
             log::error!("Failed to create CCCS app: {}", e);
